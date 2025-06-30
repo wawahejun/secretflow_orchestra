@@ -17,10 +17,18 @@ from secretflow_fl.ml.nn import FLModel
 from secretflow_fl.ml.nn.core.torch import TorchModel, metric_wrapper, optim_wrapper
 from secretflow_fl.ml.nn.callbacks.history import History
 from secretflow_fl.ml.nn.fl.backend.torch.strategy import PYUFedAvgW
+# 使用已集成到SecretFlow中的Orchestra策略
+try:
+    from secretflow_fl.ml.nn.fl.backend.torch.strategy import PYUOrchestraStrategy, PYUOrchestraSimpleStrategy
+    ORCHESTRA_AVAILABLE = True
+except ImportError:
+    # 如果导入失败，使用FedAvg作为备选
+    PYUOrchestraStrategy = PYUFedAvgW
+    PYUOrchestraSimpleStrategy = PYUFedAvgW
+    ORCHESTRA_AVAILABLE = False
+    logging.warning("Orchestra策略导入失败，将使用FedAvg作为备选")
 
 from orchestra_model import OrchestraModel, OrchestraLoss, OrchestraTrainer
-# 导入自定义Orchestra策略
-from orchestra_strategy import OrchestraStrategy, PYUOrchestraStrategy
 
 @dataclass
 class OrchestraConfig:
@@ -140,18 +148,55 @@ class FederatedOrchestraTrainer:
     
     def setup_model(self) -> FLModel:
         """设置联邦模型"""
-        # 创建Orchestra TorchModel
-        torch_model = create_orchestra_torch_model(self.config)
+        # 创建联邦模型，使用已集成的Orchestra策略
+        if ORCHESTRA_AVAILABLE:
+            self.logger.info("使用Orchestra策略")
+            strategy_name = "orchestra"
+        else:
+            self.logger.warning("Orchestra策略不可用，使用FedAvg策略")
+            strategy_name = "fed_avg_w"
         
-        # 创建联邦模型，使用Orchestra策略和聚合器
+        # 设置聚合器 - 使用第一个设备作为服务器
+        server_device = list(self.devices.values())[0]
+        
+        # 定义简单的聚合方法
+        def server_agg_method(model_params_list):
+            """简单的参数平均聚合方法"""
+            if not model_params_list:
+                return [[] for _ in range(len(self.devices))]
+            
+            # 解包参数（如果被包装过）
+            actual_params_list = []
+            for params in model_params_list:
+                if isinstance(params, list) and len(params) == 1 and isinstance(params[0], (list, tuple)):
+                    actual_params_list.append(params[0])  # 解包
+                else:
+                    actual_params_list.append(params)
+            
+            # 计算参数平均值
+            aggregated_params = []
+            for i in range(len(actual_params_list[0])):
+                param_sum = actual_params_list[0][i]
+                for j in range(1, len(actual_params_list)):
+                    param_sum = param_sum + actual_params_list[j][i]
+                aggregated_params.append(param_sum / len(actual_params_list))
+            
+            # 返回每个设备相同的聚合参数
+            return [aggregated_params for _ in range(len(self.devices))]
+        
         self.fed_model = FLModel(
             device_list=list(self.devices.values()),
-            model=torch_model,
-            strategy="orchestra",
-            aggregator=PYUFedAvgW(),
+            model=create_simple_orchestra_model(self.config),
+            strategy=strategy_name,
             backend='torch',
             random_seed=42,
-            model_init_params={}
+            server=server_device,  # 指定服务器设备
+            server_agg_method=server_agg_method,  # 添加聚合方法
+            # Orchestra特定参数
+            temperature=self.config.temperature,
+            cluster_weight=self.config.clustering_weight,
+            contrastive_weight=self.config.contrastive_weight,
+            num_clusters=self.config.num_clusters
         )
         
         return self.fed_model
@@ -159,7 +204,11 @@ class FederatedOrchestraTrainer:
     def prepare_data(self, 
                      data_dict: Dict[str, Tuple[np.ndarray, np.ndarray]]) -> Dict[str, FedNdarray]:
         """准备联邦数据"""
-        fed_data = {}
+        # 收集所有参与方的数据分区
+        x_partitions = {}
+        y_partitions = {}
+        
+        import ray
         
         for party, (x_data, y_data) in data_dict.items():
             if party not in self.devices:
@@ -173,22 +222,37 @@ class FederatedOrchestraTrainer:
                 x_data = np.array(x_data, dtype=np.float32)
                 y_data = np.array(y_data, dtype=np.int64)
                 
-                # 创建联邦数据 - 直接使用numpy数组
-                fed_x = FedNdarray(
-                    partitions={device: device(lambda x=x_data: x)},
-                    partition_way=PartitionWay.VERTICAL
-                )
+                # 使用ray.put处理大型数组
+                x_ref = ray.put(x_data)
+                y_ref = ray.put(y_data)
                 
-                fed_y = FedNdarray(
-                    partitions={device: device(lambda y=y_data: y)},
-                    partition_way=PartitionWay.VERTICAL
-                )
+                pyu_x = device(lambda x_ref=x_ref: ray.get(x_ref))()
+                pyu_y = device(lambda y_ref=y_ref: ray.get(y_ref))()
                 
-                fed_data[party] = (fed_x, fed_y)
+                x_partitions[device] = pyu_x
+                y_partitions[device] = pyu_y
                 
             except Exception as e:
-                self.logger.error(f"准备{party}数据时出错: {e}")
+                self.logger.error(f"准备数据时出错 (party {party}): {e}")
                 raise
+        
+        # 创建包含所有参与方的联邦数据
+        fed_x = FedNdarray(
+            partitions=x_partitions,
+            partition_way=PartitionWay.HORIZONTAL  # 水平分割，每个参与方有不同的样本
+        )
+        
+        fed_y = FedNdarray(
+            partitions=y_partitions,
+            partition_way=PartitionWay.HORIZONTAL
+        )
+        
+        # 返回统一的联邦数据
+        # 使用输入数据的第一个键作为输出键
+        data_key = list(data_dict.keys())[0] if data_dict else 'train'
+        fed_data = {
+            data_key: (fed_x, fed_y)
+        }
         
         return fed_data
     
@@ -225,23 +289,13 @@ class FederatedOrchestraTrainer:
         
         self.logger.info(f"开始联邦Orchestra训练，共{self.config.communication_rounds}轮通信")
         
-        # 准备训练数据
-        train_x_list = []
-        train_y_list = []
-        
-        for party in self.parties:
-            if party in fed_data:
-                x_data, y_data = fed_data[party]
-                train_x_list.append(x_data)
-                train_y_list.append(y_data)
-        
-        # 使用第一个参与方的数据（简化处理）
-        # 在实际联邦学习中，数据不会合并，而是分布式训练
-        fed_train_x = train_x_list[0] if train_x_list else None
-        fed_train_y = train_y_list[0] if train_y_list else None
-        
-        if fed_train_x is None or fed_train_y is None:
+        # 获取联邦训练数据
+        if not fed_data:
             raise ValueError("没有可用的训练数据")
+        
+        # 获取第一个可用的数据键
+        data_key = list(fed_data.keys())[0]
+        fed_train_x, fed_train_y = fed_data[data_key]
         
         # 训练参数
         train_params = {
@@ -282,22 +336,13 @@ class FederatedOrchestraTrainer:
         if self.fed_model is None:
             raise ValueError("模型未训练")
         
-        # 准备测试数据
-        test_x_list = []
-        test_y_list = []
-        
-        for party in self.parties:
-            if party in test_data:
-                x_data, y_data = test_data[party]
-                test_x_list.append(x_data)
-                test_y_list.append(y_data)
-        
-        # 使用第一个参与方的测试数据（简化处理）
-        fed_test_x = test_x_list[0] if test_x_list else None
-        fed_test_y = test_y_list[0] if test_y_list else None
-        
-        if fed_test_x is None or fed_test_y is None:
+        # 获取联邦测试数据
+        if not test_data:
             raise ValueError("没有可用的测试数据")
+        
+        # 获取第一个可用的数据键
+        data_key = list(test_data.keys())[0]
+        fed_test_x, fed_test_y = test_data[data_key]
         
         # 评估
         metrics = self.fed_model.evaluate(

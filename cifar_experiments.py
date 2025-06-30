@@ -315,7 +315,9 @@ class CIFAROrchestralExperiment:
             }
         
         except Exception as e:
-            self.logger.error(f"联邦实验失败: {e}")
+            import traceback
+            error_msg = f"联邦实验失败: {e}\n{traceback.format_exc()}"
+            self.logger.error(error_msg)
             # 如果联邦实验失败，返回空但结构正确的结果
             return {
                 'training_history': {
@@ -329,7 +331,7 @@ class CIFAROrchestralExperiment:
                     'silhouette_score': []
                 },
                 'final_results': {},
-                'error': str(e)
+                'error': error_msg
             }
     
     def visualize_results(self, 

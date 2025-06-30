@@ -92,7 +92,9 @@ class ClusteringHead(nn.Module):
         """获取归一化的聚类中心"""
         return F.normalize(self.cluster_centers, dim=1, p=2)
 
-class OrchestraModel(nn.Module):
+from secretflow_fl.ml.nn.core.torch import BaseModule
+
+class OrchestraModel(BaseModule):
     """Orchestra完整模型"""
     
     def __init__(self, 
@@ -103,6 +105,9 @@ class OrchestraModel(nn.Module):
                  dropout_rate: float = 0.2,
                  temperature: float = 0.5):
         super().__init__()
+        
+        # 设置手动优化模式
+        self.automatic_optimization = False
         
         self.input_dim = input_dim
         self.embedding_dim = embedding_dim
