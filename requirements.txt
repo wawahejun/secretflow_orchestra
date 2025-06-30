@@ -1,62 +1,24 @@
-# Orchestra SecretFlow Implementation Requirements
-
-# Core ML and Deep Learning
+# Core dependencies
 torch>=1.12.0
 torchvision>=0.13.0
 numpy>=1.21.0
-scipy>=1.7.0
 scikit-learn>=1.0.0
 
-# SecretFlow (if available via pip)
-# secretflow>=1.0.0
+# SecretFlow dependencies
+secretflow>=1.4.0
 
-# Data Processing
-pandas>=1.3.0
-h5py>=3.1.0
+# Development dependencies
+pytest>=7.0.0
+pytest-cov>=4.0.0
+black>=22.0.0
+flake8>=5.0.0
+mypy>=0.991
 
-# Visualization
+# Logging and monitoring
+tensorboard>=2.10.0
+wandb>=0.13.0
+
+# Data processing
+pandas>=1.5.0
 matplotlib>=3.5.0
 seaborn>=0.11.0
-plotly>=5.0.0
-
-# Metrics and Evaluation
-scikit-learn>=1.0.0
-
-# Dimensionality Reduction
-umap-learn>=0.5.0
-
-# Federated Learning (if using alternatives)
-# flower>=1.0.0
-# pysyft>=0.8.0
-
-# Utilities
-tqdm>=4.62.0
-Pillow>=8.3.0
-opencv-python>=4.5.0
-
-# Logging and Configuration
-pyyaml>=6.0
-click>=8.0.0
-
-# Development and Testing
-pytest>=6.2.0
-pytest-cov>=3.0.0
-black>=22.0.0
-flake8>=4.0.0
-
-# Jupyter (for notebooks)
-jupyter>=1.0.0
-ipywidgets>=7.6.0
-
-# Optional: Ray for distributed computing
-# ray>=2.0.0
-
-# Optional: Weights & Biases for experiment tracking
-# wandb>=0.12.0
-
-# Optional: TensorBoard for visualization
-tensorboard>=2.8.0
-
-# Memory profiling (optional)
-# memory-profiler>=0.60.0
-# psutil>=5.8.0

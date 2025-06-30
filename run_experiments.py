@@ -5,11 +5,17 @@ Orchestra实验运行脚本
 """
 
 import argparse
-import os
+
 import sys
 import json
 from datetime import datetime
 from typing import List, Dict
+import os
+# 显式设置后端（根据环境选择）
+if os.environ.get('MPLBACKEND') == 'module://matplotlib_inline.backend_inline':
+    os.environ['MPLBACKEND'] = 'agg'  # 替换为兼容的后端
+
+import matplotlib.pyplot as plt
 
 # 添加当前目录到Python路径
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -96,7 +102,7 @@ def parse_arguments():
     parser.add_argument(
         '--num-epochs', 
         type=int, 
-        default=100,
+        default=50,
         help='训练轮数'
     )
     

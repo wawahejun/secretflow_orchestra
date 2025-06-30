@@ -36,9 +36,10 @@ secretflow_orchestra/
 
 ```bash
 # 克隆或下载项目
-cd /d:/security/pycharm/pythonProject1/secretflow/secretflow_orchestra/
+git clone https://github.com/wawahejun/secretflow_orchestra
 
 # 安装依赖
+# 需要安装SecretFlow的源码，否则无法导入secretflow_fl库
 pip install -r requirements.txt
 
 # 验证安装
@@ -183,37 +184,7 @@ results = experiment.run_complete_experiment(config)
 
 完整参数列表请运行: `python run_experiments.py --help`
 
-## 🔧 故障排除
 
-### 常见问题
-
-1. **内存不足**
-   ```bash
-   python run_experiments.py --batch-size 64 --hidden-dims 256 128
-   ```
-
-2. **CUDA错误**
-   ```bash
-   python run_experiments.py --device cpu
-   ```
-
-3. **依赖问题**
-   ```bash
-   pip install --upgrade -r requirements.txt
-   ```
-
-4. **数据下载失败**
-   ```python
-   import torchvision
-   torchvision.datasets.CIFAR10(root='./data', download=True)
-   ```
-
-### 性能优化
-
-- **GPU加速**: 确保CUDA可用并使用 `--device cuda`
-- **批次大小**: 根据GPU内存调整 `--batch-size`
-- **模型大小**: 减少 `--hidden-dims` 和 `--embedding-dim`
-- **训练轮数**: 快速测试时减少 `--num-epochs`
 
 ## 📚 相关论文
 
@@ -226,25 +197,7 @@ results = experiment.run_complete_experiment(config)
 }
 ```
 
-## 🤝 贡献指南
-
-1. Fork 项目
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 打开 Pull Request
 
 ## 📄 许可证
 
 本项目仅用于学术研究目的。
-
-## 📞 联系方式
-
-如有问题或建议，请：
-1. 查看 [setup_guide.md](setup_guide.md) 获取详细使用说明
-2. 运行 `python test_orchestra.py` 进行功能测试
-3. 检查实验日志文件获取错误信息
-
----
-
-**开始你的Orchestra联邦学习之旅！** 🎼🤖

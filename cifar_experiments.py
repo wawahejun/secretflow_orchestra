@@ -20,8 +20,8 @@ from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score, s
 from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
 
-from .orchestra_model import OrchestraModel, OrchestraLoss, OrchestraTrainer
-from .federated_orchestra import (
+from orchestra_model import OrchestraModel, OrchestraLoss, OrchestraTrainer
+from federated_orchestra import (
     OrchestraConfig, 
     FederatedOrchestraTrainer, 
     OrchestraDataProcessor
@@ -294,17 +294,40 @@ class CIFAROrchestralExperiment:
             test_fed_dict = fed_trainer.prepare_data(test_fed_data)
             final_results = fed_trainer.evaluate(test_fed_dict)
             
+            # 确保训练历史有正确的结构
+            history_dict = training_history.history if hasattr(training_history, 'history') else {}
+            if not history_dict:
+                history_dict = {
+                    'epoch': [],
+                    'total_loss': [],
+                    'contrastive_loss': [],
+                    'clustering_loss': [],
+                    'consistency_loss': [],
+                    'ari_score': [],
+                    'nmi_score': [],
+                    'silhouette_score': []
+                }
+            
             return {
-                'training_history': training_history.history,
+                'training_history': history_dict,
                 'final_results': final_results,
                 'model_weights': fed_trainer.get_model_weights()
             }
         
         except Exception as e:
             self.logger.error(f"联邦实验失败: {e}")
-            # 如果联邦实验失败，返回空结果
+            # 如果联邦实验失败，返回空但结构正确的结果
             return {
-                'training_history': {},
+                'training_history': {
+                    'epoch': [],
+                    'total_loss': [],
+                    'contrastive_loss': [],
+                    'clustering_loss': [],
+                    'consistency_loss': [],
+                    'ari_score': [],
+                    'nmi_score': [],
+                    'silhouette_score': []
+                },
                 'final_results': {},
                 'error': str(e)
             }
@@ -324,27 +347,43 @@ class CIFAROrchestralExperiment:
             history = centralized_results['training_history']
             
             plt.subplot(3, 4, 1)
-            plt.plot(history['epoch'], history['total_loss'], label='Total Loss')
-            plt.plot(history['epoch'], history['contrastive_loss'], label='Contrastive')
-            plt.plot(history['epoch'], history['clustering_loss'], label='Clustering')
-            plt.plot(history['epoch'], history['consistency_loss'], label='Consistency')
-            plt.title('Training Losses (Centralized)')
-            plt.xlabel('Epoch')
-            plt.ylabel('Loss')
-            plt.legend()
-            plt.grid(True)
+            if ('epoch' in history and len(history['epoch']) > 0 and
+                'total_loss' in history and len(history['total_loss']) > 0):
+                plt.plot(history['epoch'], history['total_loss'], label='Total Loss')
+                if 'contrastive_loss' in history and len(history['contrastive_loss']) == len(history['epoch']):
+                    plt.plot(history['epoch'], history['contrastive_loss'], label='Contrastive')
+                if 'clustering_loss' in history and len(history['clustering_loss']) == len(history['epoch']):
+                    plt.plot(history['epoch'], history['clustering_loss'], label='Clustering')
+                if 'consistency_loss' in history and len(history['consistency_loss']) == len(history['epoch']):
+                    plt.plot(history['epoch'], history['consistency_loss'], label='Consistency')
+                plt.title('Training Losses (Centralized)')
+                plt.xlabel('Epoch')
+                plt.ylabel('Loss')
+                plt.legend()
+                plt.grid(True)
+            else:
+                plt.text(0.5, 0.5, 'No training history available', 
+                        ha='center', va='center', transform=plt.gca().transAxes)
+                plt.title('Training Losses (Centralized)')
             
             # 2. 聚类性能指标
             plt.subplot(3, 4, 2)
-            eval_epochs = list(range(10, len(history['ari_score']) * 10 + 1, 10))
-            plt.plot(eval_epochs, history['ari_score'], 'o-', label='ARI')
-            plt.plot(eval_epochs, history['nmi_score'], 's-', label='NMI')
-            plt.plot(eval_epochs, history['silhouette_score'], '^-', label='Silhouette')
-            plt.title('Clustering Metrics (Centralized)')
-            plt.xlabel('Epoch')
-            plt.ylabel('Score')
-            plt.legend()
-            plt.grid(True)
+            if ('ari_score' in history and len(history['ari_score']) > 0 and
+                'nmi_score' in history and len(history['nmi_score']) > 0 and
+                'silhouette_score' in history and len(history['silhouette_score']) > 0):
+                eval_epochs = list(range(10, len(history['ari_score']) * 10 + 1, 10))
+                plt.plot(eval_epochs, history['ari_score'], 'o-', label='ARI')
+                plt.plot(eval_epochs, history['nmi_score'], 's-', label='NMI')
+                plt.plot(eval_epochs, history['silhouette_score'], '^-', label='Silhouette')
+                plt.title('Clustering Metrics (Centralized)')
+                plt.xlabel('Epoch')
+                plt.ylabel('Score')
+                plt.legend()
+                plt.grid(True)
+            else:
+                plt.text(0.5, 0.5, 'No clustering metrics available', 
+                        ha='center', va='center', transform=plt.gca().transAxes)
+                plt.title('Clustering Metrics (Centralized)')
         
         # 3. 嵌入可视化 (t-SNE)
         if 'embeddings' in centralized_results:
@@ -443,14 +482,22 @@ class CIFAROrchestralExperiment:
             history = centralized_results['training_history']
             
             plt.subplot(3, 4, 9)
-            plt.plot(history['epoch'], history['contrastive_loss'], label='Contrastive')
-            plt.plot(history['epoch'], history['clustering_loss'], label='Clustering')
-            plt.plot(history['epoch'], history['consistency_loss'], label='Consistency')
-            plt.title('Loss Components')
-            plt.xlabel('Epoch')
-            plt.ylabel('Loss')
-            plt.legend()
-            plt.grid(True)
+            if ('epoch' in history and len(history['epoch']) > 0):
+                if 'contrastive_loss' in history and len(history['contrastive_loss']) == len(history['epoch']):
+                    plt.plot(history['epoch'], history['contrastive_loss'], label='Contrastive')
+                if 'clustering_loss' in history and len(history['clustering_loss']) == len(history['epoch']):
+                    plt.plot(history['epoch'], history['clustering_loss'], label='Clustering')
+                if 'consistency_loss' in history and len(history['consistency_loss']) == len(history['epoch']):
+                    plt.plot(history['epoch'], history['consistency_loss'], label='Consistency')
+                plt.title('Loss Components')
+                plt.xlabel('Epoch')
+                plt.ylabel('Loss')
+                plt.legend()
+                plt.grid(True)
+            else:
+                plt.text(0.5, 0.5, 'No loss components available', 
+                        ha='center', va='center', transform=plt.gca().transAxes)
+                plt.title('Loss Components')
         
         # 9-12. 预留空间用于其他可视化
         

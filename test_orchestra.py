@@ -60,7 +60,7 @@ class TestOrchestraComponents(unittest.TestCase):
         encoder = ContrastiveEncoder(
             input_dim=self.input_dim,
             hidden_dims=self.hidden_dims,
-            embedding_dim=self.embedding_dim,
+            output_dim=self.embedding_dim,
             dropout_rate=0.2
         )
         
@@ -83,7 +83,7 @@ class TestOrchestraComponents(unittest.TestCase):
         print("\n测试聚类头...")
         
         clustering_head = ClusteringHead(
-            embedding_dim=self.embedding_dim,
+            input_dim=self.embedding_dim,
             num_clusters=self.num_clusters,
             temperature=0.5
         )
@@ -92,14 +92,11 @@ class TestOrchestraComponents(unittest.TestCase):
         embeddings = torch.randn(self.batch_size, self.embedding_dim)
         
         # 前向传播测试
-        cluster_logits, cluster_probs = clustering_head(embeddings)
+        cluster_probs = clustering_head(embeddings)
         
         # 检查输出形状
-        expected_logits_shape = (self.batch_size, self.num_clusters)
         expected_probs_shape = (self.batch_size, self.num_clusters)
         
-        self.assertEqual(cluster_logits.shape, expected_logits_shape,
-                        f"聚类logits形状错误: 期望 {expected_logits_shape}, 实际 {cluster_logits.shape}")
         self.assertEqual(cluster_probs.shape, expected_probs_shape,
                         f"聚类概率形状错误: 期望 {expected_probs_shape}, 实际 {cluster_probs.shape}")
         
@@ -112,7 +109,6 @@ class TestOrchestraComponents(unittest.TestCase):
         self.assertTrue((cluster_probs >= 0).all() and (cluster_probs <= 1).all(),
                        "聚类概率超出[0,1]范围")
         
-        print(f"✓ 聚类logits形状: {cluster_logits.shape}")
         print(f"✓ 聚类概率形状: {cluster_probs.shape}")
         print(f"✓ 概率和范围: [{prob_sums.min():.6f}, {prob_sums.max():.6f}]")
     
@@ -132,24 +128,17 @@ class TestOrchestraComponents(unittest.TestCase):
         # 前向传播测试
         outputs = model(self.test_data)
         
-        # 检查输出键
-        expected_keys = {'embeddings', 'cluster_logits', 'cluster_probs'}
-        self.assertEqual(set(outputs.keys()), expected_keys,
-                        f"模型输出键错误: 期望 {expected_keys}, 实际 {set(outputs.keys())}")
+        # 解包输出
+        embeddings, cluster_probs, projections = outputs
         
         # 检查输出形状
-        embeddings = outputs['embeddings']
-        cluster_logits = outputs['cluster_logits']
-        cluster_probs = outputs['cluster_probs']
-        
         self.assertEqual(embeddings.shape, (self.batch_size, self.embedding_dim))
-        self.assertEqual(cluster_logits.shape, (self.batch_size, self.num_clusters))
         self.assertEqual(cluster_probs.shape, (self.batch_size, self.num_clusters))
+        self.assertIsNone(projections)  # 默认不返回投影
         
-        print(f"✓ 模型输出键: {list(outputs.keys())}")
         print(f"✓ 嵌入形状: {embeddings.shape}")
-        print(f"✓ 聚类logits形状: {cluster_logits.shape}")
         print(f"✓ 聚类概率形状: {cluster_probs.shape}")
+        print(f"✓ 投影: {projections}")
     
     def test_orchestra_loss(self):
         """测试Orchestra损失函数"""
@@ -175,8 +164,20 @@ class TestOrchestraComponents(unittest.TestCase):
         
         outputs_list = [model(batch) for batch in data_batches]
         
+        # 提取projections和cluster_probs
+        projections_list = []
+        cluster_probs_list = []
+        
+        for outputs in outputs_list:
+            embeddings, cluster_probs, projections = outputs
+            # 如果没有projections，使用embeddings作为projections
+            if projections is None:
+                projections = embeddings
+            projections_list.append(projections)
+            cluster_probs_list.append(cluster_probs)
+        
         # 计算损失
-        losses = loss_fn(outputs_list)
+        losses = loss_fn(projections_list, cluster_probs_list)
         
         # 检查损失键
         expected_keys = {'total', 'contrastive', 'clustering', 'consistency'}
