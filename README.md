@@ -1,203 +1,178 @@
 # Orchestra: Unsupervised Federated Learning via Globally Consistent Clustering
 
-本项目实现了论文 "Orchestra: Unsupervised Federated Learning via Globally Consistent Clustering" 中的算法，并在 CIFAR-10 和 CIFAR-100 数据集上进行了实验验证。
+本项目在SecretFlow框架下实现了Orchestra论文的算法，并在CIFAR-10数据集上复现了实验。
 
-## 📋 项目概述
-
-Orchestra 是一种无监督联邦学习方法，通过全局一致性聚类来学习数据表示。本实现包含：
-
-- 🎯 **核心算法**: 对比学习编码器、聚类头、一致性损失
-- 🔗 **联邦学习**: 基于 SecretFlow 框架的分布式训练
-- 📊 **实验验证**: CIFAR-10/100 数据集上的完整实验
-- 📈 **可视化**: 训练过程和结果的详细可视化
-- 🛠️ **工具**: 完整的实验运行和分析工具
-
-## 🏗️ 项目结构
+## 项目结构
 
 ```
 secretflow_orchestra/
-├── README.md                    # 项目说明
-├── requirements.txt             # 依赖包列表
-├── setup_guide.md              # 详细安装和使用指南
-├── orchestra_model.py           # Orchestra核心模型实现
-├── federated_orchestra.py       # 联邦学习框架集成
-├── cifar_experiments.py         # CIFAR数据集实验
-├── run_experiments.py           # 实验运行脚本
-├── test_orchestra.py            # 功能测试脚本
-└── results/                     # 实验结果目录（运行后生成）
-    ├── cifar10/                 # CIFAR-10实验结果
-    ├── cifar100/                # CIFAR-100实验结果
-    └── experiment_summary.json  # 实验总结
+├── README.md                    # 项目说明文档
+├── config.py                    # 实验配置参数
+├── data_utils.py               # 数据处理工具
+├── models.py                   # Orchestra模型实现
+├── evaluation.py               # 模型评估工具
+├── train.py                    # 完整训练脚本
+├── run_experiment.py           # 简化实验脚本
+├── secretflow_builtin_orchestra_experiment.py  # SecretFlow集成实验
+└── data/                       # 数据目录
+    └── cifar-10-batches-py/    # CIFAR-10数据集
 ```
 
-## 🚀 快速开始
+## 核心功能
 
-### 1. 环境安装
+### 1. Orchestra模型实现
+- **ResNet骨干网络**: 支持ResNet-18/34/50，针对CIFAR-10优化
+- **投影网络**: 多层感知机，用于特征投影
+- **目标网络**: 使用EMA更新的目标网络
+- **Sinkhorn-Knopp算法**: 实现等大小聚类
+- **旋转预测**: 抗退化机制
+- **对比学习**: 实例级对比损失
+- **聚类损失**: 本地和全局聚类一致性
+
+### 2. 联邦学习支持
+- **非IID数据分割**: 使用Dirichlet分布
+- **联邦平均**: FedAvg算法
+- **客户端选择**: 支持随机选择
+- **模型聚合**: 参数平均和聚类中心同步
+
+### 3. 评估工具
+- **线性评估**: 使用逻辑回归评估特征质量
+- **聚类评估**: K-means聚类，计算ARI、NMI等指标
+- **可视化**: 混淆矩阵、特征分布、训练曲线
+
+## 快速开始
+
+### 1. 环境要求
 
 ```bash
-# 克隆或下载项目
-git clone https://github.com/wawahejun/secretflow_orchestra
-
-# 安装依赖
-# 需要安装SecretFlow的源码，否则无法导入secretflow_fl库
-pip install -r requirements.txt
-
-# 验证安装
-python test_orchestra.py
+# Python 3.8+
+pip install torch torchvision
+pip install numpy scipy scikit-learn
+pip install matplotlib seaborn
+pip install secretflow  # 如果使用SecretFlow集成
 ```
 
-### 2. 运行实验
+### 2. 数据准备
+
+CIFAR-10数据集已包含在`data/`目录中。如需重新下载：
+
+```python
+import torchvision
+torchvision.datasets.CIFAR10(root='./data', train=True, download=True)
+```
+
+### 3. 运行实验
+
+
+#### 完整训练
 
 ```bash
-# 运行CIFAR-10实验（快速测试）
-python run_experiments.py --datasets cifar10 --num-epochs 20
+# 使用默认配置
+python train.py
 
-# 运行完整实验
-python run_experiments.py --datasets cifar10 cifar100 --num-epochs 100
-
-# 自定义参数
-python run_experiments.py \
-    --datasets cifar10 \
-    --num-parties 5 \
-    --split-strategy non_iid_dirichlet \
-    --num-epochs 50 \
-    --batch-size 128
+# 使用自定义配置
+python train.py --config medium --num_clients 5 --num_rounds 20
 ```
 
-### 3. 查看结果
+#### SecretFlow集成实验
 
-实验完成后，结果保存在 `./orchestra_results/` 目录：
-- 📊 可视化图表: `*_orchestra_results.png`
-- 📋 详细结果: `*_results.json`
-- 🔢 学习嵌入: `*_embeddings.npy`
-- 📝 实验日志: `*_experiment.log`
+```bash
+python secretflow_builtin_orchestra_experiment.py
+```
 
-## 🎯 核心特性
+## 配置说明
 
-### Orchestra 算法实现
+### 预定义配置
 
-- **对比学习编码器**: 学习数据的低维表示
-- **聚类头**: 将嵌入映射到聚类空间
-- **多重损失函数**:
-  - 对比学习损失 (Contrastive Loss)
-  - 聚类损失 (Clustering Loss) 
-  - 全局一致性损失 (Global Consistency Loss)
+- **small**: 小规模实验，适合快速测试
+  - 2个客户端，5轮训练
+  - 本地聚类数: 20，全局聚类数: 10
+  - 内存大小: 1024
 
-### 联邦学习支持
+- **medium**: 中等规模实验
+  - 5个客户端，10轮训练
+  - 本地聚类数: 50，全局聚类数: 10
+  - 内存大小: 2048
 
-- **数据分割策略**:
-  - IID: 独立同分布
-  - Non-IID Dirichlet: 基于Dirichlet分布
-  - Non-IID Pathological: 病理性分布
-- **联邦训练**: 支持多参与方协作训练
-- **隐私保护**: 数据不离开本地设备
+- **large**: 大规模实验
+  - 10个客户端，20轮训练
+  - 本地聚类数: 100，全局聚类数: 10
+  - 内存大小: 4096
 
-### 实验验证
-
-- **数据集**: CIFAR-10 (10类) 和 CIFAR-100 (100类)
-- **评估指标**:
-  - ARI (Adjusted Rand Index)
-  - NMI (Normalized Mutual Information)
-  - Silhouette Score
-- **可视化**: t-SNE嵌入、训练曲线、聚类结果
-
-## 📊 实验结果示例
-
-### CIFAR-10 结果
-- **ARI Score**: ~0.45-0.65
-- **NMI Score**: ~0.50-0.70
-- **Silhouette Score**: ~0.15-0.35
-
-### CIFAR-100 结果
-- **ARI Score**: ~0.25-0.45
-- **NMI Score**: ~0.40-0.60
-- **Silhouette Score**: ~0.10-0.25
-
-*注: 具体结果取决于超参数设置和随机种子*
-
-## 🛠️ 高级使用
-
-### 自定义模型
+### 关键参数
 
 ```python
-from orchestra_model import OrchestraModel
-from federated_orchestra import OrchestraConfig
-
-# 创建自定义配置
-config = OrchestraConfig(
-    input_dim=3072,
-    hidden_dims=[2048, 1024, 512],
-    embedding_dim=256,
-    num_clusters=10,
-    temperature=0.3
-)
-
-# 创建模型
-model = OrchestraModel(
-    input_dim=config.input_dim,
-    hidden_dims=config.hidden_dims,
-    embedding_dim=config.embedding_dim,
-    num_clusters=config.num_clusters
-)
-```
-
-### 自定义实验
-
-```python
-from cifar_experiments import CIFAROrchestralExperiment
-
-# 创建实验
-experiment = CIFAROrchestralExperiment(
-    dataset_name='cifar10',
-    num_parties=5,
-    split_strategy='non_iid_dirichlet',
-    output_dir='./my_results'
-)
-
-# 运行实验
-results = experiment.run_complete_experiment(config)
-```
-
-## 📋 命令行参数
-
-### 数据集参数
-- `--datasets`: 数据集选择 (cifar10, cifar100)
-- `--num-parties`: 联邦参与方数量
-- `--split-strategy`: 数据分割策略
-
-### 模型参数
-- `--hidden-dims`: 隐藏层维度
-- `--embedding-dim`: 嵌入维度
-- `--dropout-rate`: Dropout率
-- `--temperature`: 对比学习温度
-
-### 训练参数
-- `--learning-rate`: 学习率
-- `--batch-size`: 批次大小
-- `--num-epochs`: 训练轮数
-- `--communication-rounds`: 联邦通信轮数
-
-### 损失权重
-- `--contrastive-weight`: 对比学习损失权重
-- `--clustering-weight`: 聚类损失权重
-- `--consistency-weight`: 一致性损失权重
-
-完整参数列表请运行: `python run_experiments.py --help`
-
-
-
-## 📚 相关论文
-
-```bibtex
-@article{orchestra2023,
-  title={Orchestra: Unsupervised Federated Learning via Globally Consistent Clustering},
-  author={Author Names},
-  journal={Conference/Journal Name},
-  year={2023}
+config = {
+    # 基础配置
+    'num_clients': 5,           # 客户端数量
+    'num_rounds': 10,           # 联邦学习轮数
+    'local_epochs': 5,          # 本地训练轮数
+    'batch_size': 64,           # 批大小
+    'learning_rate': 0.001,     # 学习率
+    
+    # Orchestra参数
+    'temperature': 0.1,         # 对比学习温度
+    'clustering_weight': 1.0,   # 聚类损失权重
+    'contrastive_weight': 1.0,  # 对比损失权重
+    'rotation_weight': 0.5,     # 旋转损失权重
+    'num_local_clusters': 50,   # 本地聚类数
+    'num_global_clusters': 10,  # 全局聚类数
+    'memory_size': 2048,        # 投影内存大小
+    'ema_decay': 0.99,          # EMA衰减率
+    
+    # 数据配置
+    'alpha': 0.5,               # Dirichlet分布参数（越小越异构）
+    'seed': 42,                 # 随机种子
 }
 ```
 
+## 实验结果
 
-## 📄 许可证
+### 预期性能指标
 
-本项目仅用于学术研究目的。
+在CIFAR-10数据集上，Orchestra模型的预期性能：
+
+- **线性评估准确率**: 70-80%
+- **聚类ARI**: 0.3-0.5
+- **聚类NMI**: 0.4-0.6
+
+### 结果分析
+
+1. **对比学习效果**: 通过实例级对比损失学习有意义的特征表示
+2. **聚类一致性**: 本地和全局聚类保持一致，避免客户端漂移
+3. **抗退化机制**: 旋转预测任务防止表示退化
+4. **联邦学习**: 在保护隐私的同时实现全局一致的聚类
+
+## 文件说明
+
+### 核心模块
+
+1. **models.py**: Orchestra模型的完整实现
+   - `OrchestraModel`: 主模型类
+   - `ResNet`: 骨干网络
+   - `SinkhornKnopp`: 等大小聚类算法
+   - `ProjectionMLP`: 投影网络
+
+2. **data_utils.py**: 数据处理工具
+   - `CIFAR10FederatedDataset`: 联邦数据集类
+   - `create_federated_cifar10`: 创建联邦数据分割
+   - `create_dirichlet_split`: 非IID数据分割
+
+3. **evaluation.py**: 评估工具
+   - `LinearEvaluator`: 线性评估
+   - `ClusteringEvaluator`: 聚类评估
+   - `VisualizationUtils`: 可视化工具
+
+4. **train.py**: 训练框架
+   - `OrchestraTrainer`: 训练器类
+   - 支持联邦学习、检查点、早停等功能
+
+
+
+## 许可证
+
+本项目遵循Apache 2.0许可证。详见LICENSE文件。
+
+## 联系方式
+
+如有问题或建议，请提交Issue或联系项目维护者。
