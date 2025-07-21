@@ -11,7 +11,6 @@ secretflow_orchestra/
 ├── data_utils.py               # 数据处理工具
 ├── models.py                   # Orchestra模型实现
 ├── evaluation.py               # 模型评估工具
-├── train.py                    # 完整训练脚本
 ├── run_experiment.py           # 简化实验脚本
 ├── secretflow_builtin_orchestra_experiment.py  # SecretFlow集成实验
 └── data/                       # 数据目录
@@ -62,17 +61,6 @@ torchvision.datasets.CIFAR10(root='./data', train=True, download=True)
 ```
 
 ### 3. 运行实验
-
-
-#### 完整训练
-
-```bash
-# 使用默认配置
-python train.py
-
-# 使用自定义配置
-python train.py --config medium --num_clients 5 --num_rounds 20
-```
 
 #### SecretFlow集成实验
 
