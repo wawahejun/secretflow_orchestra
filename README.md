@@ -151,9 +151,6 @@ config = {
    - `ClusteringEvaluator`: 聚类评估
    - `VisualizationUtils`: 可视化工具
 
-4. **train.py**: 训练框架
-   - `OrchestraTrainer`: 训练器类
-   - 支持联邦学习、检查点、早停等功能
 
 
 
