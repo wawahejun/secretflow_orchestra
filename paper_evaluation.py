@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 原论文标准评价指标实现
 包含线性探测、1%标签半监督学习、10%标签半监督学习
@@ -171,7 +169,8 @@ class SemiSupervisedEvaluator:
                 selected = np.random.choice(class_indices, 
                                           min(samples_per_class, len(class_indices)), 
                                           replace=False)
-                labeled_indices.extend(selected)
+                # 确保索引是整数类型
+                labeled_indices.extend(selected.astype(int))
         
         # 如果还需要更多样本，随机选择
         if len(labeled_indices) < num_labeled:
@@ -179,9 +178,10 @@ class SemiSupervisedEvaluator:
             additional = np.random.choice(remaining_indices, 
                                         num_labeled - len(labeled_indices), 
                                         replace=False)
-            labeled_indices.extend(additional)
+            # 确保索引是整数类型
+            labeled_indices.extend(additional.astype(int))
         
-        labeled_indices = np.array(labeled_indices[:num_labeled])
+        labeled_indices = np.array(labeled_indices[:num_labeled], dtype=int)
         unlabeled_indices = np.setdiff1d(np.arange(num_samples), labeled_indices)
         
         return (features[labeled_indices], labels[labeled_indices],

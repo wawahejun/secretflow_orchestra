@@ -227,6 +227,18 @@ def create_federated_cifar10(data_dir: str,
         x_train, y_train, x_test, y_test = load_cifar10_from_pickle(data_dir)
     
     print(f"原始数据形状: 训练集 {x_train.shape}, 测试集 {x_test.shape}")
+    
+    # 大幅减少数据集大小以节省存储空间
+    # 只使用前1000个训练样本和200个测试样本
+    max_train_samples = min(10000, len(x_train))
+    max_test_samples = min(2000, len(x_test))
+    
+    x_train = x_train[:max_train_samples]
+    y_train = y_train[:max_train_samples]
+    x_test = x_test[:max_test_samples]
+    y_test = y_test[:max_test_samples]
+    
+    print(f"减少后数据形状: 训练集 {x_train.shape}, 测试集 {x_test.shape}")
     print(f"标签范围: 训练集 {y_train.min()}-{y_train.max()}, 测试集 {y_test.min()}-{y_test.max()}")
     
     # 数据预处理：转换为float32并归一化到[0,1]

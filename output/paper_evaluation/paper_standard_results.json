@@ -1,0 +1,7 @@
+{
+  "linear_probe_accuracy": 0.926,
+  "semisupervised_1_percent": 0.12733332812786102,
+  "semisupervised_10_percent": 0.29133331775665283,
+  "clustering_ari": 0.04009902373770513,
+  "clustering_nmi": 0.08134236241821861
+}
